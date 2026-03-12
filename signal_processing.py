@@ -10,8 +10,16 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
-import serial
 from scipy.signal import butter, sosfilt
+
+try:
+    import serial
+    SerialExceptionType = serial.SerialException
+except ModuleNotFoundError:
+    serial = None
+
+    class SerialExceptionType(Exception):
+        pass
 
 
 @dataclass
@@ -213,6 +221,12 @@ class SerialSignalRunner:
         self.config = config
 
     def run(self) -> None:
+        if serial is None:
+            raise RuntimeError(
+                "pyserial is not installed in the active Python environment. "
+                "Install it with: python -m pip install pyserial"
+            )
+
         print("[SYSTEM] Starting signal processing pipeline")
         print(
             f"[SYSTEM] Serial port={self.config.serial.port}, baud={self.config.serial.baudrate}, "
@@ -256,7 +270,7 @@ class SerialSignalRunner:
                     if self.config.logging.print_filtered:
                         print(f"[FILTERED] EMG_ENV={emg_envelope:.3f} EOG_FILT={eog_filtered:.3f}")
 
-            except serial.SerialException as exc:
+            except SerialExceptionType as exc:
                 print(f"[SERIAL] Connection error: {exc}")
                 print(f"[SERIAL] Reconnecting in {self.config.serial.reconnect_delay_seconds:.1f}s...")
                 time.sleep(self.config.serial.reconnect_delay_seconds)
