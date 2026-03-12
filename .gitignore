@@ -1,0 +1,46 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit local state
+.streamlit/
+
+# Logs and local runtime outputs
+*.log
+logs/
+runs/
+outputs/
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+
+# Local model weights (downloaded artifact)
+yolov8n.pt
+
+# Local config overrides
+configs/*.local.json

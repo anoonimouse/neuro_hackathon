@@ -1,0 +1,13 @@
+{
+  "ui": {
+    "refresh_interval_ms": 300,
+    "max_signal_points": 600,
+    "max_command_history": 100,
+    "max_log_entries": 120
+  },
+  "runtime": {
+    "enable_signal_worker": true,
+    "enable_vision_worker": true,
+    "enable_arm_worker": true
+  }
+}

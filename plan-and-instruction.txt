@@ -1,0 +1,140 @@
+Good. Here are my decisions on every open question, then the refined architecture.
+
+---
+
+## Decisions
+
+**Signal: EMG from forearm, with EOG as second channel.**
+
+The problem statement says "bio signals to robotic systems" — EMG qualifies completely and is dramatically more reliable than EEG for a trigger. Here's the exact setup on the NPG Lite: Channel A0 on the forearm (1-CH EMG, +ve and -ve on the forearm muscle belly, REF on elbow bone) for the primary trigger. Channel A1 as horizontal EOG (+ve on left side of left eye, -ve on right side of right eye, REF on mastoid behind ear) for directional commands. This gives you 3 distinct, reliable commands: forearm flex → GRAB, look left → rotate arm left, look right → rotate arm right. RELEASE is a long flex (hold >800ms). No EEG complexity, no calibration session needed, works on first try for any user.
+
+The pitch narrative is: "We decode the body's electrical language — muscle intent and eye gaze — and translate it directly into robotic action." That is a strong, honest, accurate statement for the problem statement given.
+
+**Camera: Laptop webcam for detection, Pixel 6a mounted on a fixed stand for depth estimation.**
+
+The Pixel 6a has a 12.2 MP main camera and runs Google's computational photography stack. More importantly, you can use it as an IP webcam over WiFi (via the "IP Webcam" Android app) and stream MJPEG to your laptop Python pipeline at 30fps. Use the laptop cam for YOLOv8 object detection (wide angle, fixed view of the table). Use the Pixel 6a as a second angle or for monocular depth estimation using MiDaS (a single-image depth estimation model that runs on CPU in real time). MiDaS gives you relative depth — enough to know which object on the table is closest to the arm, and roughly how far it is.
+
+You do not need a RealSense. MiDaS + a fixed known table height gives you sufficient 3D position for a constrained demo environment.
+
+**Demo setup: Semi-fixed, not fully arbitrary.**
+
+This is the right call for 4 days. The table is at a known fixed height. Objects are placed within a defined reach zone in front of the arm. The camera is fixed and calibrated once at the start. Within these constraints, the arm autonomously moves to any object placed in the zone — that is still impressive and looks like real autonomous robotics, not a scripted demo. "Arbitrary position anywhere in a room" is a robotics PhD problem. "Any object placed on this table in front of me" is a 4-day hackathon problem.
+
+**Arm: 4-DOF.** Base rotation, shoulder, elbow, gripper. This is exactly what standard hobby kits give you (MG996R or SG90 servos on a 3D printed or acrylic frame). 4-DOF is sufficient to reach any point on a flat table surface within the arm's reach radius, and grip an object. A 5th DOF wrist adds almost no functional value for table-top grabbing and doubles the IK complexity. Stay at 4-DOF.
+
+---
+
+## Refined Architecture
+
+```
+User (wearing NPG Lite)
+  ├─ Forearm EMG (Channel A0)
+  └─ Horizontal EOG (Channel A1)
+          ↓ USB-C serial stream to laptop
+Signal Processing Layer (Python)
+  ├─ EMG: bandpass → rectify → envelope → threshold → FLEX / LONG_FLEX
+  └─ EOG: bandpass → polarity detect → LOOK_LEFT / LOOK_RIGHT / CENTER
+          ↓
+Command Dispatcher
+          ↓ triggers one of 4 commands
+Vision Pipeline (runs continuously in background)
+  ├─ Laptop webcam → YOLOv8n → detects objects + bounding boxes
+  ├─ Pixel 6a stream → MiDaS → relative depth map
+  └─ Fusion: object center (x,y) + depth → table-relative (X, Y, Z)
+          ↓
+Motion Planner
+  ├─ On GRAB command: read nearest object's (X,Y,Z) → solve IK → send joint angles
+  ├─ On LOOK_LEFT/RIGHT: increment base rotation ±15°
+  └─ On LONG_FLEX: open gripper, return to home position
+          ↓ TCP over WiFi
+ESP32 firmware
+          ↓
+PCA9685 → 4 servos (base, shoulder, elbow, gripper)
+```
+
+---
+
+## The 4 Commands and What Each Does
+
+**Short forearm flex (EMG, <800ms):** GRAB. Vision pipeline reads the current nearest object position. IK solver computes joint angles. Arm moves to object, closes gripper. The user does nothing further — the arm handles the entire motion.
+
+**Hold forearm flex (EMG, >800ms):** RELEASE. Gripper opens. Arm returns to home position (upright, centered). Ready for next command.
+
+**Look left (EOG):** Base servo rotates 15° left. User can chain multiple looks to rotate further. This lets the user "aim" the arm at a specific object if multiple are visible.
+
+**Look right (EOG):** Base servo rotates 15° right.
+
+That is the complete command set. Simple, expressive, reliable, and it tells a coherent story: the user's eyes direct the arm's attention, the user's muscle fires the action.
+
+---
+
+## Signal Processing — What It Actually Looks Like
+
+For EMG on the NPG Lite, the processing is genuinely simple:
+
+1. Bandpass 20–450 Hz (muscle signals live here, removes movement artifact and powerline noise)
+2. Rectify (absolute value)
+3. Moving average envelope, 50ms window
+4. Threshold: if envelope > adaptive threshold (computed from first 5 seconds of resting baseline) for >50ms → SHORT FLEX. If it stays above threshold for >800ms → LONG FLEX.
+
+No ML. No training data. No model file. Works on the first run.
+
+For EOG:
+
+1. Bandpass 0.5–10 Hz (eye movements are slow, high-frequency content is artifact)
+2. If signal goes above +threshold for >100ms → LOOK RIGHT
+3. If signal goes below −threshold for >100ms → LOOK LEFT
+4. Returns to center when signal returns to baseline
+
+The NPG Lite's differential input handles most common-mode noise rejection already, so these thresholds are stable across users with minimal tuning.
+
+---
+
+## Vision Pipeline — What It Actually Looks Like
+
+YOLOv8n runs on the laptop webcam at 30fps, detects everyday objects (cups, bottles, phones — all standard COCO classes). It gives you a bounding box for each detected object.
+
+The bounding box center (u, v) in pixel coordinates tells you left-right and up-down position in the image. Combined with the known fixed table height and a one-time camera calibration (point the camera at a checkerboard or just measure the pixel-to-cm ratio at table distance), you can compute the real-world (X, Y) position of the object on the table surface.
+
+MiDaS from the Pixel 6a gives you relative depth to resolve which object is closest when multiple are detected, and to refine the distance estimate.
+
+The IK for a 4-DOF planar arm on a flat table is closed-form — no iterative solver needed. Given target (X, Y, Z) and arm link lengths L1, L2:
+
+- Base angle = atan2(Y, X)
+- Reach distance r = sqrt(X² + Y²)
+- Elbow angle = acos((r² + (Z-h)² − L1² − L2²) / (2·L1·L2))
+- Shoulder angle derived from elbow angle and target elevation
+
+These are 4 lines of numpy. This is the right level of complexity for 4 days.
+
+---
+
+## What the Demo Looks Like to Judges
+
+User sits at a table wearing the NPG Lite. A cup is placed somewhere on the table in front of the robotic arm. Camera feed is visible on the laptop screen with YOLOv8 bounding boxes drawn in real time. User looks left or right to rotate the arm toward the cup. User flexes their forearm once. The arm moves autonomously — no further input — directly to the cup's detected position and grabs it. User holds a flex to release and reset.
+
+The dashboard shows: live EMG waveform, live EOG waveform with detected commands highlighted, camera feed with object detections, current arm state, and the IK solution being computed in real time.
+
+That is a complete, end-to-end, neuron-to-robot demonstration. It directly addresses the problem statement. It has a visible wow factor because the arm moves autonomously to the object — the user did not need to guide it step by step.
+
+---
+
+## 4-Day Execution Plan
+
+**Day 1:** NPG Lite signal acquisition working. EMG threshold detection working in Python. EOG direction detection working. All 4 commands printing to terminal from real muscle/eye signals.
+
+**Day 2:** YOLOv8n object detection on webcam. Pixel 6a streaming via IP Webcam app. Camera-to-table coordinate calibration. Object position (X, Y) computing correctly.
+
+**Day 3:** ESP32 firmware + PCA9685 + servo arm assembled. IK solver implemented and tested. Full pipeline: signal → command → IK → servo motion. Arm moving to a fixed target position reliably.
+
+**Day 4:** Vision + arm integration. GRAB command triggers full autonomous move-to-object. Dashboard built in Streamlit. Demo rehearsed. Backup mode (simulate signals) tested.
+
+---
+
+## One Thing to Decide Before I Write the Blueprint
+
+The NPG Lite connects to the laptop either via USB-C serial or via BLE/WiFi (firmware dependent). For a tethered demo, USB-C serial is more reliable and has lower latency (~5ms vs ~20–50ms for BLE). For a wireless demo, BLE looks better on stage.
+
+**My recommendation: USB-C for development and testing throughout the 4 days. Switch to BLE only on Day 4 if everything is already working and you have time. Do not start with BLE — serial debugging is much easier.**
+
+Everything else is decided. Give me the go and I'll write the complete blueprint.

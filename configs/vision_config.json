@@ -1,0 +1,47 @@
+{
+  "camera": {
+    "index": 0,
+    "width": 1280,
+    "height": 720,
+    "fps": 30
+  },
+  "yolo": {
+    "model_path": "yolov8n.pt",
+    "confidence_threshold": 0.35,
+    "iou_threshold": 0.45,
+    "max_detections": 20,
+    "target_classes": [
+      "cup",
+      "bottle",
+      "cell phone",
+      "book",
+      "remote",
+      "mouse"
+    ]
+  },
+  "calibration": {
+    "file_path": "configs/calibration_data.json",
+    "table_z_cm": 0.0,
+    "pixels_per_cm_x": 6.2,
+    "pixels_per_cm_y": 6.2,
+    "origin_u": 640.0,
+    "origin_v": 690.0,
+    "measurement_distance_cm": 20.0
+  },
+  "reach_zone_cm": {
+    "x_min": 5.0,
+    "x_max": 35.0,
+    "y_min": -20.0,
+    "y_max": 20.0
+  },
+  "selection": {
+    "stabilization_seconds": 0.5,
+    "position_quantization_px": 20,
+    "max_missing_seconds": 0.3
+  },
+  "display": {
+    "window_name": "NeuroHack Vision",
+    "show_fps": true,
+    "draw_reach_zone": true
+  }
+}

@@ -1,0 +1,8 @@
+numpy>=1.26.0
+scipy>=1.11.0
+pyserial>=3.5
+opencv-python>=4.10.0
+ultralytics>=8.3.0
+streamlit>=1.39.0
+pandas>=2.2.0
+

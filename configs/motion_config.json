@@ -1,0 +1,61 @@
+{
+  "geometry": {
+    "link1_cm": 14.0,
+    "link2_cm": 14.0,
+    "base_height_cm": 6.0,
+    "table_z_cm": 0.0,
+    "grip_height_offset_cm": 1.5,
+    "approach_lift_cm": 4.0
+  },
+  "planner": {
+    "look_step_deg": 15.0,
+    "manual_base_offset_min_deg": -90.0,
+    "manual_base_offset_max_deg": 90.0
+  },
+  "poses": {
+    "home": {
+      "base": 90.0,
+      "shoulder": 85.0,
+      "elbow": 95.0,
+      "gripper": 40.0
+    },
+    "safe": {
+      "base": 90.0,
+      "shoulder": 80.0,
+      "elbow": 100.0,
+      "gripper": 40.0
+    },
+    "gripper_open": 40.0,
+    "gripper_closed": 18.0
+  },
+  "servo": {
+    "base": {
+      "min": 0.0,
+      "max": 180.0,
+      "invert": false,
+      "offset_deg": 0.0
+    },
+    "shoulder": {
+      "min": 15.0,
+      "max": 165.0,
+      "invert": false,
+      "offset_deg": 0.0
+    },
+    "elbow": {
+      "min": 15.0,
+      "max": 170.0,
+      "invert": false,
+      "offset_deg": 0.0
+    },
+    "gripper": {
+      "min": 0.0,
+      "max": 90.0,
+      "invert": false,
+      "offset_deg": 0.0
+    }
+  },
+  "motion": {
+    "step_delay_ms": 350,
+    "use_approach_pose": true
+  }
+}

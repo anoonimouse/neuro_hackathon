@@ -1,0 +1,12 @@
+{
+  "esp32": {
+    "host": "192.168.1.50",
+    "port": 5005,
+    "connect_timeout_seconds": 3.0,
+    "response_timeout_seconds": 3.0
+  },
+  "motion": {
+    "planner_config_path": "configs/motion_config.json",
+    "default_step_delay_ms": 350
+  }
+}
